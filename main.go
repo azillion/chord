@@ -20,8 +20,15 @@
 
 package main
 
-import "github.com/azillion/whisper/cmd"
+import (
+	"fmt"
+	"flag"
+
+	"github.com/genuinetools/pkg/cli"
+	"github.com/azillion/whisper/version"
+)
 
 func main() {
+	// Create a new cli program.
 	cmd.Execute()
 }
