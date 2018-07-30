@@ -4,9 +4,18 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"bufio"
+	"io/ioutil"
+	"os"
+	"os/user"
 )
 
-var dToken string
+var (
+	dToken string
+	user User
+	path string
+	ds 
+)
 
 const configHelp = `Configure whisper Discord settings.`
 
@@ -21,10 +30,25 @@ func (cmd *configCommand) Register(fs *flag.FlagSet) {}
 type configCommand struct{}
 
 func (cmd *configCommand) Run(ctx context.Context, args []string) error {
-	dToken, err := createDiscordSession()
+	user, err := user.Current()
 	if err != nil {
 		return err
 	}
-	fmt.Printf("\nToken: %s\n", dToken)
+
+	path := user.HomeDir + ".whisper.config"
+	if _, err := os.Stat("/path/to/whatever"); err == nil {
+	token, err := ioutil.ReadFile(path)
+		if err != nil {
+			return err
+		}
+	}
+
+	ds, err := createDiscordSession()
+	if err != nil {
+		return err
+	}
+
+	err := ioutil.WriteFile(path, ds.Token, 0644)
+
 	return nil
 }
