@@ -11,7 +11,7 @@ BUILDDIR := ${PREFIX}/cross
 VERSION := $(shell cat VERSION.txt)
 GITCOMMIT := $(shell git rev-parse --short HEAD)
 GITUNTRACKEDCHANGES := $(shell git status --porcelain --untracked-files=no)
-ifneq($(GITUNTRACKEDCHANGES),)
+ifneq ($(GITUNTRACKEDCHANGES),)
 	GITCOMMIT := $(GITCOMMIT)-dirty
 endif
 CTIMEVAR=-X $(PKG)/version.GITCOMMIT=$(GITCOMMIT) -X $(PKG)/version.VERSION=$(VERSION)
@@ -33,8 +33,8 @@ $(NAME): $(wildcard *.go) $(wildcard */*.go) VERSION.txt
 static: ## Builds a static executable
 	@echo "+ $@"
 	CGO_ENABLED=0 $(GO) build \
-				-tags "$(BUILDTAGS) static_build" \
-				${GO_LDFLAGS_STATIC} -o $(NAME) .
+		-tags "$(BUILDTAGS) static_build" \
+		${GO_LDFLAGS_STATIC} -o $(NAME) .
 
 all: clean build fmt lint staticcheck vet install ## Runs a clean, build, fmt, lint, staticcheck, vet and install
 

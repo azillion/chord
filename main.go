@@ -21,14 +21,87 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"flag"
+	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/genuinetools/pkg/cli"
+	"github.com/azillion/whisper/internal/getconfig"
 	"github.com/azillion/whisper/version"
+	"github.com/bwmarrin/discordgo"
+	"github.com/genuinetools/pkg/cli"
+	"github.com/sirupsen/logrus"
+)
+
+var (
+	email    string
+	password string
+
+	debug bool
 )
 
 func main() {
 	// Create a new cli program.
-	cmd.Execute()
+	p := cli.NewProgram()
+	p.Name = "whisper"
+	p.Description = "A Discord TUI for direct messaging."
+	p.GitCommit = version.GITCOMMIT
+	p.Version = version.VERSION
+
+	// Build list of available commands
+	p.Commands = []cli.Command{
+		&configCommand{},
+	}
+
+	// Setup the global flags.
+	p.FlagSet = flag.NewFlagSet("global", flag.ExitOnError)
+
+	p.FlagSet.StringVar(&email, "email", "", "email for discord account")
+	p.FlagSet.StringVar(&email, "e", "", "email for discord account")
+
+	p.FlagSet.StringVar(&password, "password", "", "password for discord account")
+	p.FlagSet.StringVar(&password, "p", "", "password for discord account")
+
+	p.FlagSet.BoolVar(&debug, "d", false, "enable debug logging")
+
+	// Set the before function.
+	p.Before = func(ctx context.Context) error {
+		// On ^C, or SIGTERM handle exit.
+		signals := make(chan os.Signal, 0)
+		signal.Notify(signals, os.Interrupt)
+		signal.Notify(signals, syscall.SIGTERM)
+		_, cancel := context.WithCancel(ctx)
+		go func() {
+			for sig := range signals {
+				cancel()
+				logrus.Infof("Received %s, exiting.", sig.String())
+				os.Exit(0)
+			}
+		}()
+
+		// Set the log level.
+		if debug {
+			logrus.SetLevel(logrus.DebugLevel)
+		}
+
+		return nil
+	}
+
+	// Run our program.
+	p.Run()
+}
+
+func createDiscordSession() (string, error) {
+	authConfig, err := getconfig.GetAuthConfig(email, password)
+	if err != nil {
+		return "", err
+	}
+
+	// Create a new Discord session using the provided login information.
+	ds, err := discordgo.New(authConfig.Email, authConfig.Password)
+	if err != nil {
+		return "", err
+	}
+	return ds.Token, nil
 }

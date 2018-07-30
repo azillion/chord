@@ -19,7 +19,7 @@ type AuthConfig struct {
 // Optionally takes in the authentication values, otherwise pulls them from a
 // config file.
 func GetAuthConfig(email, password string) (AuthConfig, error) {
-	if email != nil && password != nil {
+	if email != "" && password != "" {
 		return AuthConfig{
 			Email:    email,
 			Password: password,
@@ -30,19 +30,23 @@ func GetAuthConfig(email, password string) (AuthConfig, error) {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("Enter Discord Email: ")
-	email, err := reader.ReadString('\n')
-	if err != nil {
-		return AuthConfig{}, err
+	if email == "" {
+		fmt.Print("Enter Discord Email: ")
+		email_in, err := reader.ReadString('\n')
+		if err != nil {
+			return AuthConfig{}, err
+		}
+		email = email_in
 	}
 
-	fmt.Print("Enter Discord Password: ")
-	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		return AuthConfig{}, err
+	if password == "" {
+		fmt.Print("Enter Discord Password: ")
+		bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			return AuthConfig{}, err
+		}
+		password = string(bytePassword)
 	}
-
-	password := string(bytePassword)
 
 	email, password = strings.TrimSpace(email), strings.TrimSpace(password)
 	return AuthConfig{
