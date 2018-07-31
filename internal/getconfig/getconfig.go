@@ -11,8 +11,9 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// AuthConfig struct
 type AuthConfig struct {
-	Email, Password string
+	Token, Email, Password string
 }
 
 // GetAuthConfig returns the Discord AuthConfig.
@@ -21,6 +22,7 @@ type AuthConfig struct {
 func GetAuthConfig(email, password string) (AuthConfig, error) {
 	if email != "" && password != "" {
 		return AuthConfig{
+			Token:    "",
 			Email:    email,
 			Password: password,
 		}, nil
@@ -32,11 +34,11 @@ func GetAuthConfig(email, password string) (AuthConfig, error) {
 
 	if email == "" {
 		fmt.Print("Enter Discord Email: ")
-		email_in, err := reader.ReadString('\n')
+		emailIn, err := reader.ReadString('\n')
 		if err != nil {
 			return AuthConfig{}, err
 		}
-		email = email_in
+		email = emailIn
 	}
 
 	if password == "" {
@@ -45,11 +47,13 @@ func GetAuthConfig(email, password string) (AuthConfig, error) {
 		if err != nil {
 			return AuthConfig{}, err
 		}
+		fmt.Println()
 		password = string(bytePassword)
 	}
 
 	email, password = strings.TrimSpace(email), strings.TrimSpace(password)
 	return AuthConfig{
+		Token:    "",
 		Email:    email,
 		Password: password,
 	}, nil

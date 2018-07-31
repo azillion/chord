@@ -23,8 +23,11 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
+	"os/user"
 	"syscall"
 
 	"github.com/azillion/whisper/internal/getconfig"
@@ -37,9 +40,21 @@ import (
 var (
 	email    string
 	password string
+	token    string
 
-	debug bool
+	debug      bool
+	configPath string
 )
+
+const configFile string = ".whisper.config"
+
+func init() {
+	currentUser, err := user.Current()
+	if err != nil {
+		os.Exit(1)
+	}
+	configPath = currentUser.HomeDir + "/" + configFile
+}
 
 func main() {
 	// Create a new cli program.
@@ -62,6 +77,9 @@ func main() {
 
 	p.FlagSet.StringVar(&password, "password", "", "password for discord account")
 	p.FlagSet.StringVar(&password, "p", "", "password for discord account")
+
+	p.FlagSet.StringVar(&token, "token", "", "token for discord account")
+	p.FlagSet.StringVar(&token, "t", "", "token for discord account")
 
 	p.FlagSet.BoolVar(&debug, "d", false, "enable debug logging")
 
@@ -92,24 +110,105 @@ func main() {
 	p.Run()
 }
 
-func createDiscordSession(authToken string) (discordgo.Session, error) {
-	if authToken != "" {
-		ds, err := discordgo.New("Bot " + authToken)
+func createDiscordSession(authConfig getconfig.AuthConfig) (*discordgo.Session, error) {
+	var dToken string
+	if email != "" && password != "" {
+		ds, err := createDiscordSessionFromLogin(email, password)
 		if err != nil {
-			return discordgo.Session{}, err
+			return new(discordgo.Session), err
 		}
-		return *ds, nil
+		return ds, nil
 	}
 
-	authConfig, err := getconfig.GetAuthConfig(email, password)
+	// everything besides configcmd will use this
+	if authConfig.Token == "" && authConfig.Email == "" && authConfig.Password == "" {
+		// read the token in from a file
+		dTokenBytes, _ := ioutil.ReadFile(configPath)
+		if len(dTokenBytes) > 0 {
+			dToken = string(dTokenBytes)
+		}
+
+		// if file token is not empty
+		if dToken != "" {
+			ds, err := createDiscordSessionFromToken(dToken)
+			if err != nil {
+				return new(discordgo.Session), err
+			}
+
+			// create token file
+			file, err := os.Create(configPath)
+			if err != nil {
+				return new(discordgo.Session), err
+			}
+			defer file.Close()
+
+			// write token to token file
+			if _, err := file.WriteString(ds.Token); err != nil {
+				return new(discordgo.Session), err
+			}
+			return ds, nil
+		}
+		return new(discordgo.Session), fmt.Errorf("empty auth credentials provided, try 'whisper config'")
+	}
+
+	// if a token is passed in
+	if authConfig.Token != "" {
+		ds, err := createDiscordSessionFromToken(authConfig.Token)
+		if err != nil {
+			return new(discordgo.Session), err
+		}
+		return ds, nil
+	}
+
+	// if an email and password are passed in, config will use this
+	ds, err := createDiscordSessionFromLogin(authConfig.Email, authConfig.Password)
 	if err != nil {
-		return discordgo.Session{}, err
+		return new(discordgo.Session), err
+	}
+	// save the token to the token file
+	// create token file
+	file, err := os.Create(configPath)
+	if err != nil {
+		return new(discordgo.Session), err
+	}
+	defer file.Close()
+
+	// write token to token file
+	if _, err := file.WriteString(ds.Token); err != nil {
+		return new(discordgo.Session), err
+	}
+	return ds, nil
+}
+
+func createDiscordSessionFromToken(authToken string) (*discordgo.Session, error) {
+	if token != "" {
+		authToken = token
+	}
+	if authToken == "" {
+		return new(discordgo.Session), fmt.Errorf("empty auth token provided, try 'whisper config'")
+	}
+	ds, err := discordgo.New("Bot " + authToken)
+	if err != nil {
+		return new(discordgo.Session), err
+	}
+	return ds, nil
+}
+
+func createDiscordSessionFromLogin(emailIn, passwordIn string) (*discordgo.Session, error) {
+	if email != "" {
+		emailIn = email
+	}
+	if password != "" {
+		passwordIn = password
+	}
+	if emailIn == "" || passwordIn == "" {
+		return new(discordgo.Session), fmt.Errorf("no email or password entered, try 'whisper config'")
 	}
 
 	// Create a new Discord session using the provided login information.
-	ds, err := discordgo.New(authConfig.Email, authConfig.Password)
+	ds, err := discordgo.New(emailIn, passwordIn)
 	if err != nil {
-		return discordgo.Session{}, err
+		return new(discordgo.Session), err
 	}
-	return *ds, nil
+	return ds, nil
 }

@@ -3,29 +3,15 @@ package main
 import (
 	"context"
 	"flag"
-	"io/ioutil"
-	"os"
-	"os/user"
+	"fmt"
 
+	"github.com/azillion/whisper/internal/getconfig"
 	"github.com/bwmarrin/discordgo"
 )
 
 var (
-	dToken       string
-	current_user user.User
-	ds           discordgo.Session
-	configPath   string
+	ds discordgo.Session
 )
-
-const configFile string = ".whisper.config"
-
-func init() {
-	current_user, err := user.Current()
-	if err != nil {
-		os.Exit(1)
-	}
-	configPath = current_user.HomeDir + "/" + configFile
-}
 
 const configHelp = `Configure whisper Discord settings.`
 
@@ -40,26 +26,15 @@ func (cmd *configCommand) Register(fs *flag.FlagSet) {}
 type configCommand struct{}
 
 func (cmd *configCommand) Run(ctx context.Context, args []string) error {
-	dTokenBytes, _ := ioutil.ReadFile(configPath)
-	if len(dTokenBytes) > 0 {
-		dToken = string(dTokenBytes)
-	}
-
-	ds, err := createDiscordSession(dToken)
+	authConfig, err := getconfig.GetAuthConfig(email, password)
 	if err != nil {
 		return err
 	}
-
-	if dToken == "" {
-		file, err := os.Create(configPath)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-		if _, err := file.WriteString(ds.Token); err != nil {
-			return err
-		}
+	_, err = createDiscordSession(authConfig)
+	if err != nil {
+		return fmt.Errorf("You may need to login from a browser first or check your credentials\n%v", err)
 	}
+	fmt.Println("Created and saved a Discord auth token")
 
 	return nil
 }
