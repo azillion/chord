@@ -47,6 +47,7 @@ var (
 
 	// // DSession global Discord session
 	// DSession discordgo.Session
+	// dUser discordgo.User
 )
 
 const configFile string = ".whisper.config"
@@ -71,19 +72,20 @@ func main() {
 	p.Commands = []cli.Command{
 		&configCommand{},
 		&lsCommand{},
+		&tuiCommand{},
 	}
 
 	// Setup the global flags.
 	p.FlagSet = flag.NewFlagSet("global", flag.ExitOnError)
 
-	p.FlagSet.StringVar(&email, "email", "", "email for discord account")
-	p.FlagSet.StringVar(&email, "e", "", "email for discord account")
+	p.FlagSet.StringVar(&email, "email", "", "email for Discord account")
+	p.FlagSet.StringVar(&email, "e", "", "email for Discord account")
 
-	p.FlagSet.StringVar(&password, "password", "", "password for discord account")
-	p.FlagSet.StringVar(&password, "p", "", "password for discord account")
+	p.FlagSet.StringVar(&password, "password", "", "password for Discord account")
+	p.FlagSet.StringVar(&password, "p", "", "password for Discord account")
 
-	p.FlagSet.StringVar(&token, "token", "", "token for discord account")
-	p.FlagSet.StringVar(&token, "t", "", "token for discord account")
+	p.FlagSet.StringVar(&token, "token", "", "token for Discord account")
+	p.FlagSet.StringVar(&token, "t", "", "token for Discord account")
 
 	p.FlagSet.BoolVar(&debug, "d", false, "enable debug logging")
 
@@ -109,7 +111,6 @@ func main() {
 
 		return nil
 	}
-
 	// Run our program.
 	p.Run()
 }
@@ -189,12 +190,16 @@ func createDiscordSessionFromToken(authToken string) (*discordgo.Session, error)
 		authToken = token
 	}
 	if authToken == "" {
-		return new(discordgo.Session), fmt.Errorf("empty auth token provided, try 'whisper config'")
+		return new(discordgo.Session), fmt.Errorf("Empty auth token provided, try 'whisper config'")
 	}
 	ds, err := discordgo.New(authToken)
 	if err != nil {
 		return new(discordgo.Session), err
 	}
+	// dUser, err := ds.User("@me")
+	// if err != nil {
+	// 	return new(discordgo.Session), err
+	// }
 	return ds, nil
 }
 
@@ -206,7 +211,7 @@ func createDiscordSessionFromLogin(emailIn, passwordIn string) (*discordgo.Sessi
 		passwordIn = password
 	}
 	if emailIn == "" || passwordIn == "" {
-		return new(discordgo.Session), fmt.Errorf("no email or password entered, try 'whisper config'")
+		return new(discordgo.Session), fmt.Errorf("No email or password entered, try 'whisper config'")
 	}
 
 	// Create a new Discord session using the provided login information.
@@ -214,5 +219,9 @@ func createDiscordSessionFromLogin(emailIn, passwordIn string) (*discordgo.Sessi
 	if err != nil {
 		return new(discordgo.Session), err
 	}
+	// dUser, err := ds.User("@me")
+	// if err != nil {
+	// 	return new(discordgo.Session), err
+	// }
 	return ds, nil
 }

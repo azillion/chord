@@ -5,7 +5,10 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
+
 	"github.com/azillion/whisper/internal/getconfig"
+	"github.com/sirupsen/logrus"
 )
 
 const configHelp = `Configure whisper Discord settings.`
@@ -22,13 +25,15 @@ type configCommand struct{}
 
 func (cmd *configCommand) Run(ctx context.Context, args []string) error {
 	authConfig, err := getconfig.GetAuthConfig(email, password)
+	logrus.Debugf("email: %s\n", authConfig.Email)
 	if err != nil {
 		return err
 	}
-	_, err = createDiscordSession(authConfig)
+	ds, err := createDiscordSession(authConfig)
 	if err != nil {
 		return fmt.Errorf("You may need to login from a browser first or check your credentials\n%v", err)
 	}
+	logrus.Debugf("Session %v\n", spew.Sdump(ds))
 	fmt.Println("Created and saved a Discord auth token")
 
 	return nil
