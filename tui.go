@@ -91,7 +91,7 @@ func StartTUI(cSel int) {
 	}
 
 	channelSel := cSel
-	if channelSel == -1 {
+	if channelSel <= -1 {
 		// Display available channels
 		fmt.Println("Available Private Channels:")
 		for i, chann := range channels {
@@ -129,6 +129,11 @@ func StartTUI(cSel int) {
 	}
 
 	// Set Channel to selected channel
+	if (len(channels) - 1) < channelSel {
+		err := fmt.Errorf("Channel selection outside of available selection range\n%d < %d", (len(channels) - 1), channelSel)
+		fmt.Printf("%v\n", err)
+		os.Exit(1)
+	}
 	channel = channels[channelSel]
 	logrus.Debugf("Channel selected %d\n%v\n", channelSel, spew.Sdump(channel))
 
