@@ -44,6 +44,9 @@ var (
 
 	debug      bool
 	configPath string
+
+	// // DSession global Discord session
+	// DSession discordgo.Session
 )
 
 const configFile string = ".whisper.config"
@@ -67,6 +70,7 @@ func main() {
 	// Build list of available commands
 	p.Commands = []cli.Command{
 		&configCommand{},
+		&lsCommand{},
 	}
 
 	// Setup the global flags.
@@ -187,7 +191,7 @@ func createDiscordSessionFromToken(authToken string) (*discordgo.Session, error)
 	if authToken == "" {
 		return new(discordgo.Session), fmt.Errorf("empty auth token provided, try 'whisper config'")
 	}
-	ds, err := discordgo.New("Bot " + authToken)
+	ds, err := discordgo.New(authToken)
 	if err != nil {
 		return new(discordgo.Session), err
 	}

@@ -6,11 +6,6 @@ import (
 	"fmt"
 
 	"github.com/azillion/whisper/internal/getconfig"
-	"github.com/bwmarrin/discordgo"
-)
-
-var (
-	ds discordgo.Session
 )
 
 const configHelp = `Configure whisper Discord settings.`
