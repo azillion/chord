@@ -24,14 +24,8 @@ type post struct {
 }
 
 func (p *post) messageToPost(message *discordgo.Message) error {
-	s := tuiDS.State
-	logrus.Debugf("%v\n", s)
 	p.username = message.Author.String()
-	content, err := message.ContentWithMoreMentionsReplaced(tuiDS)
-	if err != nil {
-		return err
-	}
-	p.message = content
+	p.message = message.ContentWithMentionsReplaced()
 	parsedTime, err := message.Timestamp.Parse()
 	if err != nil {
 		return err
@@ -55,17 +49,21 @@ func (cmd *tuiCommand) ShortHelp() string { return tuiHelp }
 func (cmd *tuiCommand) LongHelp() string  { return tuiHelp }
 func (cmd *tuiCommand) Hidden() bool      { return false }
 
-func (cmd *tuiCommand) Register(fs *flag.FlagSet) {}
+func (cmd *tuiCommand) Register(fs *flag.FlagSet) {
+	fs.IntVar(&cmd.cSel, "c", -1, "specify the channel to start the tui in")
+}
 
-type tuiCommand struct{}
+type tuiCommand struct {
+	cSel int
+}
 
 func (cmd *tuiCommand) Run(ctx context.Context, args []string) error {
-	StartTUI()
+	StartTUI(cmd.cSel)
 	return nil
 }
 
 // StartTUI Start the TUI display
-func StartTUI() {
+func StartTUI(cSel int) {
 	// sidebar := tui.NewVBox(
 	// 	tui.NewLabel("CHANNELS"),
 	// 	tui.NewLabel("general"),
@@ -92,39 +90,42 @@ func StartTUI() {
 		os.Exit(1)
 	}
 
-	// Display available channels
-	fmt.Println("Available Private Channels:")
-	for i, chann := range channels {
-		logrus.Debugf("Channel %d\n%v\n", i, spew.Sdump(chann))
+	channelSel := cSel
+	if channelSel == -1 {
+		// Display available channels
+		fmt.Println("Available Private Channels:")
+		for i, chann := range channels {
+			logrus.Debugf("Channel %d\n%v\n", i, spew.Sdump(chann))
 
-		// Switch of supported channel types
-		switch chanType := chann.Type; chanType {
-		case 1: // Direct Messages
-			var flatRecipients string
-			recipients := chann.Recipients
-			logrus.Debugf("Channel %d recipients\n%v\n", i, spew.Sdump(recipients))
-			for _, recipient := range recipients {
-				flatRecipients = fmt.Sprintf("%s %s", flatRecipients, recipient.Username)
+			// Switch of supported channel types
+			switch chanType := chann.Type; chanType {
+			case 1: // Direct Messages
+				var flatRecipients string
+				recipients := chann.Recipients
+				logrus.Debugf("Channel %d recipients\n%v\n", i, spew.Sdump(recipients))
+				for _, recipient := range recipients {
+					flatRecipients = fmt.Sprintf("%s %s", flatRecipients, recipient.Username)
+				}
+				fmt.Printf("\t%d) DM to %s\n", i, strings.TrimSpace(flatRecipients))
+			default:
+				fmt.Println("No available channels")
+				os.Exit(0)
 			}
-			fmt.Printf("\t%d) DM to %s\n", i, strings.TrimSpace(flatRecipients))
-		default:
-			fmt.Println("No available channels")
-			os.Exit(0)
 		}
-	}
 
-	// Get channel selection
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Select a channel to switch to: ")
-	channelSelS, err := reader.ReadString('\n')
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		os.Exit(1)
-	}
-	channelSel, err := strconv.Atoi(strings.TrimSpace(channelSelS))
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		os.Exit(1)
+		// Get channel selection
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Select a channel to switch to: ")
+		channelSelS, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			os.Exit(1)
+		}
+		channelSel, err = strconv.Atoi(strings.TrimSpace(channelSelS))
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	// Set Channel to selected channel
@@ -141,24 +142,12 @@ func StartTUI() {
 	// spew.Dump(messages[0])
 
 	p := post{}
-	message := messages[0]
-	p.username = message.Author.String()
-	content, err := message.ContentWithMoreMentionsReplaced(tuiDS)
-	if err != nil {
+	if err := p.messageToPost(messages[0]); err != nil {
 		fmt.Printf("%v\n", err)
 		os.Exit(1)
 	}
-	p.message = content
-	parsedTime, err := message.Timestamp.Parse()
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		os.Exit(1)
-	}
-	p.time = parsedTime.Format("15:04")
 
 	posts = append(posts, p)
-	spew.Dump(posts)
-	os.Exit(0)
 	// Convert messages into tui messages
 	// tuiMessages, err := convertToTUIMessages(messages)
 	// if err != nil {
