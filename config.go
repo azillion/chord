@@ -3,19 +3,29 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
-	"bufio"
 	"io/ioutil"
 	"os"
 	"os/user"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 var (
-	dToken string
-	user User
-	path string
-	ds 
+	dToken       string
+	current_user user.User
+	ds           discordgo.Session
+	configPath   string
 )
+
+const configFile string = ".whisper.config"
+
+func init() {
+	current_user, err := user.Current()
+	if err != nil {
+		os.Exit(1)
+	}
+	configPath = current_user.HomeDir + "/" + configFile
+}
 
 const configHelp = `Configure whisper Discord settings.`
 
@@ -30,25 +40,26 @@ func (cmd *configCommand) Register(fs *flag.FlagSet) {}
 type configCommand struct{}
 
 func (cmd *configCommand) Run(ctx context.Context, args []string) error {
-	user, err := user.Current()
+	dTokenBytes, _ := ioutil.ReadFile(configPath)
+	if len(dTokenBytes) > 0 {
+		dToken = string(dTokenBytes)
+	}
+
+	ds, err := createDiscordSession(dToken)
 	if err != nil {
 		return err
 	}
 
-	path := user.HomeDir + ".whisper.config"
-	if _, err := os.Stat("/path/to/whatever"); err == nil {
-	token, err := ioutil.ReadFile(path)
+	if dToken == "" {
+		file, err := os.Create(configPath)
 		if err != nil {
 			return err
 		}
+		defer file.Close()
+		if _, err := file.WriteString(ds.Token); err != nil {
+			return err
+		}
 	}
-
-	ds, err := createDiscordSession()
-	if err != nil {
-		return err
-	}
-
-	err := ioutil.WriteFile(path, ds.Token, 0644)
 
 	return nil
 }

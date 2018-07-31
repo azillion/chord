@@ -92,16 +92,24 @@ func main() {
 	p.Run()
 }
 
-func createDiscordSession() (string, error) {
+func createDiscordSession(authToken string) (discordgo.Session, error) {
+	if authToken != "" {
+		ds, err := discordgo.New("Bot " + authToken)
+		if err != nil {
+			return discordgo.Session{}, err
+		}
+		return *ds, nil
+	}
+
 	authConfig, err := getconfig.GetAuthConfig(email, password)
 	if err != nil {
-		return "", err
+		return discordgo.Session{}, err
 	}
 
 	// Create a new Discord session using the provided login information.
 	ds, err := discordgo.New(authConfig.Email, authConfig.Password)
 	if err != nil {
-		return "", err
+		return discordgo.Session{}, err
 	}
-	return ds.Token, nil
+	return *ds, nil
 }

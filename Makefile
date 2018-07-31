@@ -26,7 +26,7 @@ GOOSARCHES = $(shell cat .goosarch)
 
 build: $(NAME)
 
-$(NAME): $(wildcard *.go) $(wildcard */*.go) VERSION.txt
+$(NAME): $(wildcard *.go) $(wildcard */*.go) $(wildcard */*/*.go) VERSION.txt
 	@echo "+ $@"
 	$(GO) build -tags "$(BUILDTAGS)" ${GO_LDFLAGS} -o $(NAME) .
 
