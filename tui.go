@@ -18,6 +18,7 @@ import (
 )
 
 type post struct {
+	id       int
 	username string
 	message  string
 	time     string
@@ -146,13 +147,16 @@ func StartTUI(cSel int) {
 	logrus.Debugf("Channel messages\n%v\n", spew.Sdump(messages))
 	// spew.Dump(messages[0])
 
-	p := post{}
-	if err := p.messageToPost(messages[0]); err != nil {
-		fmt.Printf("%v\n", err)
-		os.Exit(1)
+	for i, message := range messages {
+		p := post{id: i}
+		if err := p.messageToPost(message); err != nil {
+			fmt.Printf("%v\n", err)
+			os.Exit(1)
+		}
+		posts = append(posts, p)
 	}
+	// TODO: sort posts in reverse https://golang.org/pkg/sort/#example_Interface
 
-	posts = append(posts, p)
 	// Convert messages into tui messages
 	// tuiMessages, err := convertToTUIMessages(messages)
 	// if err != nil {
