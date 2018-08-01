@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,11 +19,19 @@ import (
 )
 
 type post struct {
-	id       int
+	ID       int
 	username string
 	message  string
 	time     string
 }
+
+// ByID implements sort.Interface for []post based on
+// the ID field.
+type ByID []post
+
+func (id ByID) Len() int           { return len(id) }
+func (id ByID) Swap(i, j int)      { id[i], id[j] = id[j], id[i] }
+func (id ByID) Less(i, j int) bool { return id[i].ID < id[j].ID }
 
 func (p *post) messageToPost(message *discordgo.Message) error {
 	p.username = message.Author.String()
@@ -37,12 +46,17 @@ func (p *post) messageToPost(message *discordgo.Message) error {
 
 // Channel Channel being displayed by TUI
 var (
-	channel *discordgo.Channel
-	posts   []post
-	tuiDS   *discordgo.Session
+	channel   *discordgo.Channel
+	posts     []post
+	tuiDS     *discordgo.Session
+	postCount = 0
 )
 
-const tuiHelp = `TUI for sending and receiving Discord DMs`
+const (
+	tuiHelp = `TUI for sending and receiving Discord DMs`
+	// messagesFetchLimit is the limit that discordgo returns of old messages. Max is 100
+	messagesFetchLimit = 100
+)
 
 func (cmd *tuiCommand) Name() string      { return "tui" }
 func (cmd *tuiCommand) Args() string      { return "[OPTIONS]" }
@@ -139,7 +153,7 @@ func StartTUI(cSel int) {
 	logrus.Debugf("Channel selected %d\n%v\n", channelSel, spew.Sdump(channel))
 
 	// Get Channel messages
-	messages, err := tuiDS.ChannelMessages(channel.ID, 100, "", "", "")
+	messages, err := tuiDS.ChannelMessages(channel.ID, messagesFetchLimit, "", "", "")
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		os.Exit(1)
@@ -147,22 +161,16 @@ func StartTUI(cSel int) {
 	logrus.Debugf("Channel messages\n%v\n", spew.Sdump(messages))
 	// spew.Dump(messages[0])
 
-	for i, message := range messages {
-		p := post{id: i}
-		if err := p.messageToPost(message); err != nil {
-			fmt.Printf("%v\n", err)
-			os.Exit(1)
-		}
-		posts = append(posts, p)
+	// Convert messages to posts
+	posts, err := convertToTUIMessages(messages)
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		os.Exit(1)
 	}
-	// TODO: sort posts in reverse https://golang.org/pkg/sort/#example_Interface
 
-	// Convert messages into tui messages
-	// tuiMessages, err := convertToTUIMessages(messages)
-	// if err != nil {
-	// 	logrus.Debugf("%v\n", err)
-	// 	os.Exit(1)
-	// }
+	// post posts by id
+	sort.Sort(ByID(posts))
+	logrus.Debugf("# of Channel messages\n%d\n", len(posts))
 
 	history := tui.NewVBox()
 
@@ -218,6 +226,15 @@ func StartTUI(cSel int) {
 	}
 }
 
-// func convertToTUIMessages(messages *[]discordgo.Message) ([]post, error) {
-// 	var posts
-// }
+func convertToTUIMessages(messages []*discordgo.Message) ([]post, error) {
+	var ps []post
+	for i, message := range messages {
+		id := messagesFetchLimit - i
+		p := post{ID: id}
+		if err := p.messageToPost(message); err != nil {
+			return nil, err
+		}
+		ps = append(ps, p)
+	}
+	return ps, nil
+}
