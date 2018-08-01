@@ -168,20 +168,23 @@ func StartTUI(cSel int) {
 		os.Exit(1)
 	}
 
-	// post posts by id
+	// sort posts by id
 	sort.Sort(ByID(posts))
 	logrus.Debugf("# of Channel messages\n%d\n", len(posts))
 
+	// Register the messageCreate func as a callback for MessageCreate events.
+	tuiDS.AddHandler(messageCreate)
+
+	// Open a websocket connection to Discord and begin listening.
+	err = tuiDS.Open()
+	if err != nil {
+		fmt.Println("error opening connection,", err)
+		return
+	}
+
 	history := tui.NewVBox()
 
-	for _, m := range posts {
-		history.Append(tui.NewHBox(
-			tui.NewLabel(m.time),
-			tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", m.username))),
-			tui.NewLabel(m.message),
-			tui.NewSpacer(),
-		))
-	}
+	addPostsToDisplay(posts, history)
 
 	historyScroll := tui.NewScrollArea(history)
 	historyScroll.SetAutoscrollToBottom(true)
@@ -215,6 +218,7 @@ func StartTUI(cSel int) {
 	ui, err := tui.New(root)
 	if err != nil {
 		logrus.Debugf("%v\n", err)
+		tuiDS.Close()
 		os.Exit(1)
 	}
 
@@ -222,7 +226,21 @@ func StartTUI(cSel int) {
 
 	if err := ui.Run(); err != nil {
 		logrus.Debugf("%v\n", err)
+		tuiDS.Close()
 		os.Exit(1)
+	}
+	// Cleanly close down the Discord session.
+	tuiDS.Close()
+}
+
+func addPostsToDisplay(ps []post, vb *tui.Box) {
+	for _, m := range ps {
+		vb.Append(tui.NewHBox(
+			tui.NewLabel(m.time),
+			tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", m.username))),
+			tui.NewLabel(m.message),
+			tui.NewSpacer(),
+		))
 	}
 }
 
@@ -237,4 +255,16 @@ func convertToTUIMessages(messages []*discordgo.Message) ([]post, error) {
 		ps = append(ps, p)
 	}
 	return ps, nil
+}
+
+func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+	// If the message is "ping" reply with "Pong!"
+	if m.Content == "ping" {
+		s.ChannelMessageSend(m.ChannelID, "Pong!")
+	}
+
+	// If the message is "pong" reply with "Ping!"
+	if m.Content == "pong" {
+		s.ChannelMessageSend(m.ChannelID, "Ping!")
+	}
 }
