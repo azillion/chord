@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/azillion/chord/internal/getconfig"
 	"github.com/bwmarrin/discordgo"
@@ -46,10 +45,19 @@ func (p *post) messageToPost(message *discordgo.Message) error {
 
 // Channel Channel being displayed by TUI
 var (
-	channel   *discordgo.Channel
-	posts     []post
-	tuiDS     *discordgo.Session
-	postCount = 0
+	channel       *discordgo.Channel
+	posts         []post
+	tuiDS         *discordgo.Session
+	history       = tui.NewVBox()
+	historyScroll = tui.NewScrollArea(history)
+	historyBox    = tui.NewVBox(historyScroll)
+	input         = tui.NewEntry()
+	inputBox      = tui.NewHBox(input)
+	chat          = tui.NewVBox(historyBox, inputBox)
+	root          = tui.NewHBox(chat)
+	ui            tui.UI
+	postCount     = 0
+	lastAck       = new(discordgo.Ack)
 )
 
 const (
@@ -57,6 +65,14 @@ const (
 	// messagesFetchLimit is the limit that discordgo returns of old messages. Max is 100
 	messagesFetchLimit = 100
 )
+
+func init() {
+	localUI, err := tui.New(root)
+	if err != nil {
+		panic(err, tuiDS)
+	}
+	ui = localUI
+}
 
 func (cmd *tuiCommand) Name() string      { return "tui" }
 func (cmd *tuiCommand) Args() string      { return "[OPTIONS]" }
@@ -77,6 +93,13 @@ func (cmd *tuiCommand) Run(ctx context.Context, args []string) error {
 	return nil
 }
 
+// Error Handler
+func panic(err error, ds *discordgo.Session) {
+	fmt.Printf("%v\n", err)
+	tuiDS.Close()
+	os.Exit(1)
+}
+
 // StartTUI Start the TUI display
 func StartTUI(cSel int) {
 	// sidebar := tui.NewVBox(
@@ -93,16 +116,14 @@ func StartTUI(cSel int) {
 	if err != nil {
 		logrus.Debugf("Session Failed \n%v\nexiting.", spew.Sdump(tuiDS))
 		err = fmt.Errorf("You may need to login from a browser first or check your credentials\n%v", err)
-		fmt.Printf("%v\n", err)
-		os.Exit(1)
+		panic(err, tuiDS)
 	}
 
 	// Get a list of DM channels
 	channels, err := tuiDS.UserChannels()
 	logrus.Debugf("Retrieved Channels\n%v\n", spew.Sdump(channels))
 	if err != nil {
-		fmt.Printf("%v\n", err)
-		os.Exit(1)
+		panic(err, tuiDS)
 	}
 
 	channelSel := cSel
@@ -133,21 +154,18 @@ func StartTUI(cSel int) {
 		fmt.Print("Select a channel to switch to: ")
 		channelSelS, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Printf("%v\n", err)
-			os.Exit(1)
+			panic(err, tuiDS)
 		}
 		channelSel, err = strconv.Atoi(strings.TrimSpace(channelSelS))
 		if err != nil {
-			fmt.Printf("%v\n", err)
-			os.Exit(1)
+			panic(err, tuiDS)
 		}
 	}
 
 	// Set Channel to selected channel
 	if (len(channels) - 1) < channelSel {
 		err := fmt.Errorf("Channel selection outside of available selection range\n%d < %d", (len(channels) - 1), channelSel)
-		fmt.Printf("%v\n", err)
-		os.Exit(1)
+		panic(err, tuiDS)
 	}
 	channel = channels[channelSel]
 	logrus.Debugf("Channel selected %d\n%v\n", channelSel, spew.Sdump(channel))
@@ -155,22 +173,65 @@ func StartTUI(cSel int) {
 	// Get Channel messages
 	messages, err := tuiDS.ChannelMessages(channel.ID, messagesFetchLimit, "", "", "")
 	if err != nil {
-		fmt.Printf("%v\n", err)
-		os.Exit(1)
+		panic(err, tuiDS)
 	}
 	logrus.Debugf("Channel messages\n%v\n", spew.Sdump(messages))
 	// spew.Dump(messages[0])
 
 	// Convert messages to posts
-	posts, err := convertToTUIMessages(messages)
+	posts, err := convertToTUIPosts(messages)
 	if err != nil {
-		fmt.Printf("%v\n", err)
-		os.Exit(1)
+		panic(err, tuiDS)
 	}
 
-	// sort posts by id
-	sort.Sort(ByID(posts))
-	logrus.Debugf("# of Channel messages\n%d\n", len(posts))
+	// // sort posts by id
+	// sort.Sort(ByID(posts))
+	// logrus.Debugf("# of Channel messages\n%d\n", len(posts))
+
+	// history defined above as the location to display messages
+	// history = tui.NewVBox()
+
+	// Add posts to history box
+	addPostsToDisplay(posts)
+
+	// historyScroll := tui.NewScrollArea(history)
+	historyScroll.SetAutoscrollToBottom(true)
+
+	// historyBox := tui.NewVBox(historyScroll)
+	historyBox.SetBorder(true)
+
+	// input := tui.NewEntry()
+	input.SetFocused(true)
+	input.SetSizePolicy(tui.Expanding, tui.Maximum)
+
+	// inputBox := tui.NewHBox(input)
+	inputBox.SetBorder(true)
+	inputBox.SetSizePolicy(tui.Expanding, tui.Maximum)
+
+	// chat := tui.NewVBox(historyBox, inputBox)
+	chat.SetSizePolicy(tui.Expanding, tui.Expanding)
+
+	input.OnSubmit(func(e *tui.Entry) {
+		_, err := tuiDS.ChannelMessageSend(channel.ID, e.Text())
+		if err != nil {
+			panic(err, tuiDS)
+		}
+		// p, err := convertToTUIPost(message)
+		// if err != nil {
+		// 	panic(err, tuiDS)
+		// }
+		// addPostToDisplay(p)
+		input.SetText("")
+	})
+
+	// root := tui.NewHBox(chat)
+
+	// ui, err := tui.New(root)
+	// if err != nil {
+	// 	panic(err, tuiDS)
+	// }
+
+	ui.SetKeybinding("Esc", func() { ui.Quit() })
 
 	// Register the messageCreate func as a callback for MessageCreate events.
 	tuiDS.AddHandler(messageCreate)
@@ -178,93 +239,78 @@ func StartTUI(cSel int) {
 	// Open a websocket connection to Discord and begin listening.
 	err = tuiDS.Open()
 	if err != nil {
-		fmt.Println("error opening connection,", err)
-		return
+		err = fmt.Errorf("error opening connection, %v", err)
+		panic(err, tuiDS)
 	}
-
-	history := tui.NewVBox()
-
-	addPostsToDisplay(posts, history)
-
-	historyScroll := tui.NewScrollArea(history)
-	historyScroll.SetAutoscrollToBottom(true)
-
-	historyBox := tui.NewVBox(historyScroll)
-	historyBox.SetBorder(true)
-
-	input := tui.NewEntry()
-	input.SetFocused(true)
-	input.SetSizePolicy(tui.Expanding, tui.Maximum)
-
-	inputBox := tui.NewHBox(input)
-	inputBox.SetBorder(true)
-	inputBox.SetSizePolicy(tui.Expanding, tui.Maximum)
-
-	chat := tui.NewVBox(historyBox, inputBox)
-	chat.SetSizePolicy(tui.Expanding, tui.Expanding)
-
-	input.OnSubmit(func(e *tui.Entry) {
-		history.Append(tui.NewHBox(
-			tui.NewLabel(time.Now().Format("15:04")),
-			tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", "john"))),
-			tui.NewLabel(e.Text()),
-			tui.NewSpacer(),
-		))
-		input.SetText("")
-	})
-
-	root := tui.NewHBox(chat)
-
-	ui, err := tui.New(root)
-	if err != nil {
-		logrus.Debugf("%v\n", err)
-		tuiDS.Close()
-		os.Exit(1)
-	}
-
-	ui.SetKeybinding("Esc", func() { ui.Quit() })
 
 	if err := ui.Run(); err != nil {
-		logrus.Debugf("%v\n", err)
-		tuiDS.Close()
-		os.Exit(1)
+		panic(err, tuiDS)
 	}
 	// Cleanly close down the Discord session.
 	tuiDS.Close()
 }
 
-func addPostsToDisplay(ps []post, vb *tui.Box) {
-	for _, m := range ps {
-		vb.Append(tui.NewHBox(
-			tui.NewLabel(m.time),
-			tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", m.username))),
-			tui.NewLabel(m.message),
+// Add posts to the history box (defined above)
+func addPostsToDisplay(ps []post) {
+	// sort posts by id
+	sort.Sort(sort.Reverse(ByID(ps)))
+	logrus.Debugf("# of Channel messages\n%d\n", len(ps))
+	for _, p := range ps {
+		p.message = strconv.QuoteToASCII(p.message)
+		history.Append(tui.NewHBox(
+			tui.NewLabel(p.time),
+			tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", p.username))),
+			tui.NewLabel(p.message),
 			tui.NewSpacer(),
 		))
 	}
 }
 
-func convertToTUIMessages(messages []*discordgo.Message) ([]post, error) {
+func addPostToDisplay(p post) {
+	p.message = strconv.QuoteToASCII(p.message)
+	ui.Update(func() {
+		history.Append(tui.NewHBox(
+			tui.NewLabel(p.time),
+			tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", p.username))),
+			tui.NewLabel(p.message),
+			tui.NewSpacer(),
+		))
+	})
+}
+
+// Convert discordgo messages to posts
+func convertToTUIPosts(messages []*discordgo.Message) ([]post, error) {
 	var ps []post
-	for i, message := range messages {
-		id := messagesFetchLimit - i
-		p := post{ID: id}
-		if err := p.messageToPost(message); err != nil {
-			return nil, err
+	for _, message := range messages {
+		p, err := convertToTUIPost(message)
+		if err != nil {
+			return ps, err
 		}
 		ps = append(ps, p)
 	}
 	return ps, nil
 }
 
-func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-	// If the message is "ping" reply with "Pong!"
-	if m.Content == "ping" {
-		s.ChannelMessageSend(m.ChannelID, "Pong!")
+// Convert discordgo messages to posts
+func convertToTUIPost(message *discordgo.Message) (post, error) {
+	p := post{ID: postCount}
+	if err := p.messageToPost(message); err != nil {
+		return p, err
 	}
+	postCount++
+	return p, nil
+}
 
-	// If the message is "pong" reply with "Ping!"
-	if m.Content == "pong" {
-		s.ChannelMessageSend(m.ChannelID, "Ping!")
+// New message event handler
+func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+	newAck, err := s.ChannelMessageAck(m.Message.ChannelID, m.Message.ID, lastAck.Token)
+	if err != nil {
+		panic(err, tuiDS)
 	}
+	lastAck = newAck
+	p, err := convertToTUIPost(m.Message)
+	if err != nil {
+		panic(err, tuiDS)
+	}
+	addPostToDisplay(p)
 }

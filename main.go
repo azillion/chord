@@ -47,7 +47,7 @@ var (
 
 	// // DSession global Discord session
 	// DSession discordgo.Session
-	// dUser discordgo.User
+	dUser *discordgo.User
 )
 
 const configFile string = ".chord.config"
@@ -196,10 +196,11 @@ func createDiscordSessionFromToken(authToken string) (*discordgo.Session, error)
 	if err != nil {
 		return new(discordgo.Session), err
 	}
-	// dUser, err := ds.User("@me")
-	// if err != nil {
-	// 	return new(discordgo.Session), err
-	// }
+	dUser, err = ds.User("@me")
+	if err != nil {
+		return new(discordgo.Session), err
+	}
+	logrus.Debugf("Logged in as %s\n", dUser.String())
 	return ds, nil
 }
 
@@ -219,9 +220,10 @@ func createDiscordSessionFromLogin(emailIn, passwordIn string) (*discordgo.Sessi
 	if err != nil {
 		return new(discordgo.Session), err
 	}
-	// dUser, err := ds.User("@me")
-	// if err != nil {
-	// 	return new(discordgo.Session), err
-	// }
+	dUser, err = ds.User("@me")
+	if err != nil {
+		return new(discordgo.Session), err
+	}
+	logrus.Debugf("Logged in as %s\n", dUser.String())
 	return ds, nil
 }
