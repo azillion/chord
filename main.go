@@ -30,8 +30,8 @@ import (
 	"os/user"
 	"syscall"
 
-	"github.com/azillion/whisper/internal/getconfig"
-	"github.com/azillion/whisper/version"
+	"github.com/azillion/chord/internal/getconfig"
+	"github.com/azillion/chord/version"
 	"github.com/bwmarrin/discordgo"
 	"github.com/genuinetools/pkg/cli"
 	"github.com/sirupsen/logrus"
@@ -50,7 +50,7 @@ var (
 	// dUser discordgo.User
 )
 
-const configFile string = ".whisper.config"
+const configFile string = ".chord.config"
 
 func init() {
 	currentUser, err := user.Current()
@@ -63,7 +63,7 @@ func init() {
 func main() {
 	// Create a new cli program.
 	p := cli.NewProgram()
-	p.Name = "whisper"
+	p.Name = "chord"
 	p.Description = "A Discord TUI for direct messaging."
 	p.GitCommit = version.GITCOMMIT
 	p.Version = version.VERSION
@@ -153,7 +153,7 @@ func createDiscordSession(authConfig getconfig.AuthConfig) (*discordgo.Session, 
 			}
 			return ds, nil
 		}
-		return new(discordgo.Session), fmt.Errorf("empty auth credentials provided, try 'whisper config'")
+		return new(discordgo.Session), fmt.Errorf("empty auth credentials provided, try 'chord config'")
 	}
 
 	// if a token is passed in
@@ -190,7 +190,7 @@ func createDiscordSessionFromToken(authToken string) (*discordgo.Session, error)
 		authToken = token
 	}
 	if authToken == "" {
-		return new(discordgo.Session), fmt.Errorf("Empty auth token provided, try 'whisper config'")
+		return new(discordgo.Session), fmt.Errorf("Empty auth token provided, try 'chord config'")
 	}
 	ds, err := discordgo.New(authToken)
 	if err != nil {
@@ -211,7 +211,7 @@ func createDiscordSessionFromLogin(emailIn, passwordIn string) (*discordgo.Sessi
 		passwordIn = password
 	}
 	if emailIn == "" || passwordIn == "" {
-		return new(discordgo.Session), fmt.Errorf("No email or password entered, try 'whisper config'")
+		return new(discordgo.Session), fmt.Errorf("No email or password entered, try 'chord config'")
 	}
 
 	// Create a new Discord session using the provided login information.

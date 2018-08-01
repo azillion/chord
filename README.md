@@ -1,6 +1,6 @@
-# whisper
-[![GoDoc](https://img.shields.io/badge/godoc-reference-5272B4.svg?style=for-the-badge)](https://godoc.org/github.com/azillion/whisper)
-[![Github All Releases](https://img.shields.io/github/downloads/azillion/whisper/total.svg?style=for-the-badge)](https://github.com/azillion/whisper/releases)
+# chord
+[![GoDoc](https://img.shields.io/badge/godoc-reference-5272B4.svg?style=for-the-badge)](https://godoc.org/github.com/azillion/chord)
+[![Github All Releases](https://img.shields.io/github/downloads/azillion/chord/total.svg?style=for-the-badge)](https://github.com/azillion/chord/releases)
 
 A Discord TUI for direct messaging.
 
@@ -12,12 +12,12 @@ A Discord TUI for direct messaging.
 
 #### Binaries
 
-For installation instructions from binaries please visit the [Releases Page](https://github.com/azillion/whisper/releases).
+For installation instructions from binaries please visit the [Releases Page](https://github.com/azillion/chord/releases).
 
 #### Via Go
 
 ```console
-$ go get github.com/azillion/whisper
+$ go get github.com/azillion/chord
 ```
 
 ## Uses:

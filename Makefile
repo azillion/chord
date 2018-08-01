@@ -1,6 +1,6 @@
 PREFIX?=$(shell pwd)
 
-NAME := whisper
+NAME := chord
 PKG := github.com/azillion/$(NAME)
 
 # Set any default go build tags

@@ -9,7 +9,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/sirupsen/logrus"
 
-	"github.com/azillion/whisper/internal/getconfig"
+	"github.com/azillion/chord/internal/getconfig"
 )
 
 const lsHelp = `List available Discord channels.`

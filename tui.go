@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/azillion/whisper/internal/getconfig"
+	"github.com/azillion/chord/internal/getconfig"
 	"github.com/bwmarrin/discordgo"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/marcusolsson/tui-go"

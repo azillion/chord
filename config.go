@@ -7,11 +7,11 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 
-	"github.com/azillion/whisper/internal/getconfig"
+	"github.com/azillion/chord/internal/getconfig"
 	"github.com/sirupsen/logrus"
 )
 
-const configHelp = `Configure whisper Discord settings.`
+const configHelp = `Configure chord Discord settings.`
 
 func (cmd *configCommand) Name() string      { return "config" }
 func (cmd *configCommand) Args() string      { return "[OPTIONS]" }
