@@ -13,7 +13,9 @@ import (
 	"github.com/azillion/chord/internal/getconfig"
 	"github.com/bwmarrin/discordgo"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/fatih/color"
 	"github.com/marcusolsson/tui-go"
+	"github.com/mozillazg/go-unidecode"
 	"github.com/sirupsen/logrus"
 )
 
@@ -58,6 +60,7 @@ var (
 	ui            tui.UI
 	postCount     = 0
 	lastAck       = new(discordgo.Ack)
+	noColor       = false
 )
 
 const (
@@ -82,13 +85,17 @@ func (cmd *tuiCommand) Hidden() bool      { return false }
 
 func (cmd *tuiCommand) Register(fs *flag.FlagSet) {
 	fs.IntVar(&cmd.cSel, "c", -1, "specify the channel to start the tui in")
+	fs.IntVar(&cmd.cSel, "channel", -1, "specify the channel to start the tui in")
+	fs.BoolVar(&cmd.noColor, "no-color", false, "disable color output")
 }
 
 type tuiCommand struct {
-	cSel int
+	cSel    int
+	noColor bool
 }
 
 func (cmd *tuiCommand) Run(ctx context.Context, args []string) error {
+	color.NoColor = cmd.noColor
 	StartTUI(cmd.cSel)
 	return nil
 }
@@ -102,16 +109,6 @@ func panic(err error, ds *discordgo.Session) {
 
 // StartTUI Start the TUI display
 func StartTUI(cSel int) {
-	// sidebar := tui.NewVBox(
-	// 	tui.NewLabel("CHANNELS"),
-	// 	tui.NewLabel("general"),
-	// 	tui.NewLabel("random"),
-	// 	tui.NewLabel(""),
-	// 	tui.NewLabel("DIRECT MESSAGES"),
-	// 	tui.NewLabel("slackbot"),
-	// 	tui.NewSpacer(),
-	// )
-	// sidebar.SetBorder(true)
 	tuiDS, err := createDiscordSession(getconfig.AuthConfig{})
 	if err != nil {
 		logrus.Debugf("Session Failed \n%v\nexiting.", spew.Sdump(tuiDS))
@@ -176,7 +173,6 @@ func StartTUI(cSel int) {
 		panic(err, tuiDS)
 	}
 	logrus.Debugf("Channel messages\n%v\n", spew.Sdump(messages))
-	// spew.Dump(messages[0])
 
 	// Convert messages to posts
 	posts, err := convertToTUIPosts(messages)
@@ -184,15 +180,18 @@ func StartTUI(cSel int) {
 		panic(err, tuiDS)
 	}
 
-	// // sort posts by id
-	// sort.Sort(ByID(posts))
-	// logrus.Debugf("# of Channel messages\n%d\n", len(posts))
-
-	// history defined above as the location to display messages
-	// history = tui.NewVBox()
-
 	// Add posts to history box
 	addPostsToDisplay(posts)
+
+	// Register the messageCreate func as a callback for MessageCreate events.
+	tuiDS.AddHandler(messageCreate)
+
+	// Open a websocket connection to Discord and begin listening.
+	err = tuiDS.Open()
+	if err != nil {
+		err = fmt.Errorf("error opening connection, %v", err)
+		panic(err, tuiDS)
+	}
 
 	// historyScroll := tui.NewScrollArea(history)
 	historyScroll.SetAutoscrollToBottom(true)
@@ -216,32 +215,12 @@ func StartTUI(cSel int) {
 		if err != nil {
 			panic(err, tuiDS)
 		}
-		// p, err := convertToTUIPost(message)
-		// if err != nil {
-		// 	panic(err, tuiDS)
-		// }
-		// addPostToDisplay(p)
 		input.SetText("")
 	})
 
 	// root := tui.NewHBox(chat)
-
 	// ui, err := tui.New(root)
-	// if err != nil {
-	// 	panic(err, tuiDS)
-	// }
-
 	ui.SetKeybinding("Esc", func() { ui.Quit() })
-
-	// Register the messageCreate func as a callback for MessageCreate events.
-	tuiDS.AddHandler(messageCreate)
-
-	// Open a websocket connection to Discord and begin listening.
-	err = tuiDS.Open()
-	if err != nil {
-		err = fmt.Errorf("error opening connection, %v", err)
-		panic(err, tuiDS)
-	}
 
 	if err := ui.Run(); err != nil {
 		panic(err, tuiDS)
@@ -250,16 +229,27 @@ func StartTUI(cSel int) {
 	tuiDS.Close()
 }
 
+func addColor(s string, cAttr color.Attribute) string {
+	c := color.New(cAttr).SprintFunc()
+	return fmt.Sprintf("%s", c(s))
+}
+
 // Add posts to the history box (defined above)
 func addPostsToDisplay(ps []post) {
 	// sort posts by id
 	sort.Sort(sort.Reverse(ByID(ps)))
 	logrus.Debugf("# of Channel messages\n%d\n", len(ps))
 	for _, p := range ps {
-		p.message = strconv.QuoteToASCII(p.message)
+		p.message = unidecode.Unidecode(p.message)
+		p.username = fmt.Sprintf("<%s>", p.username)
+		// personColor := color.FgGreen
+		// if dUser.String() == p.username {
+		// 	personColor = color.FgBlue
+		// }
+		// p.username = addColor(p.username, personColor)
 		history.Append(tui.NewHBox(
 			tui.NewLabel(p.time),
-			tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", p.username))),
+			tui.NewPadder(1, 0, tui.NewLabel(p.username)),
 			tui.NewLabel(p.message),
 			tui.NewSpacer(),
 		))
@@ -267,11 +257,17 @@ func addPostsToDisplay(ps []post) {
 }
 
 func addPostToDisplay(p post) {
-	p.message = strconv.QuoteToASCII(p.message)
+	p.message = unidecode.Unidecode(p.message)
+	p.username = fmt.Sprintf("<%s>", p.username)
+	// personColor := color.FgGreen
+	// if dUser.String() == p.username {
+	// 	personColor = color.FgBlue
+	// }
+	// p.username = addColor(p.username), personColor)
 	ui.Update(func() {
 		history.Append(tui.NewHBox(
 			tui.NewLabel(p.time),
-			tui.NewPadder(1, 0, tui.NewLabel(fmt.Sprintf("<%s>", p.username))),
+			tui.NewPadder(1, 0, tui.NewLabel(p.username)),
 			tui.NewLabel(p.message),
 			tui.NewSpacer(),
 		))
