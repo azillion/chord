@@ -24,7 +24,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"os/user"
@@ -33,6 +32,7 @@ import (
 	"github.com/azillion/chord/internal/getconfig"
 	"github.com/azillion/chord/version"
 	"github.com/bwmarrin/discordgo"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/genuinetools/pkg/cli"
 	"github.com/sirupsen/logrus"
 )
@@ -50,7 +50,10 @@ var (
 	dUser *discordgo.User
 )
 
-const configFile string = ".chord.config"
+const (
+	configFile        string = ".chord.config"
+	discordSessionKey string = "discordSession"
+)
 
 func init() {
 	currentUser, err := user.Current()
@@ -87,10 +90,23 @@ func main() {
 	p.FlagSet.StringVar(&token, "token", "", "token for Discord account")
 	p.FlagSet.StringVar(&token, "t", "", "token for Discord account")
 
-	p.FlagSet.BoolVar(&debug, "d", false, "enable debug logging")
+	p.FlagSet.BoolVar(&debug, "d", true, "enable debug logging")
 
 	// Set the before function.
 	p.Before = func(ctx context.Context) error {
+		// Set the log level.
+		if debug {
+			logrus.SetLevel(logrus.DebugLevel)
+		}
+
+		ds, err := createDiscordSession(getconfig.AuthConfig{})
+		if err != nil {
+			logrus.Debugf("Session Failed \n%v\nexiting.", spew.Sdump(ds))
+			err = fmt.Errorf("You may need to login from a browser first or check your credentials\n%v", err)
+			panic(err, ds)
+		}
+		ctx = setContextValue(ctx, discordSessionKey, ds)
+
 		// On ^C, or SIGTERM handle exit.
 		signals := make(chan os.Signal, 0)
 		signal.Notify(signals, os.Interrupt)
@@ -104,126 +120,8 @@ func main() {
 			}
 		}()
 
-		// Set the log level.
-		if debug {
-			logrus.SetLevel(logrus.DebugLevel)
-		}
-
 		return nil
 	}
 	// Run our program.
 	p.Run()
-}
-
-func createDiscordSession(authConfig getconfig.AuthConfig) (*discordgo.Session, error) {
-	var dToken string
-	if email != "" && password != "" {
-		ds, err := createDiscordSessionFromLogin(email, password)
-		if err != nil {
-			return new(discordgo.Session), err
-		}
-		return ds, nil
-	}
-
-	// everything besides configcmd will use this
-	if authConfig.Token == "" && authConfig.Email == "" && authConfig.Password == "" {
-		// read the token in from a file
-		dTokenBytes, _ := ioutil.ReadFile(configPath)
-		if len(dTokenBytes) > 0 {
-			dToken = string(dTokenBytes)
-		}
-
-		// if file token is not empty
-		if dToken != "" {
-			ds, err := createDiscordSessionFromToken(dToken)
-			if err != nil {
-				return new(discordgo.Session), err
-			}
-
-			// create token file
-			file, err := os.Create(configPath)
-			if err != nil {
-				return new(discordgo.Session), err
-			}
-			defer file.Close()
-
-			// write token to token file
-			if _, err := file.WriteString(ds.Token); err != nil {
-				return new(discordgo.Session), err
-			}
-			return ds, nil
-		}
-		return new(discordgo.Session), fmt.Errorf("empty auth credentials provided, try 'chord config'")
-	}
-
-	// if a token is passed in
-	if authConfig.Token != "" {
-		ds, err := createDiscordSessionFromToken(authConfig.Token)
-		if err != nil {
-			return new(discordgo.Session), err
-		}
-		return ds, nil
-	}
-
-	// if an email and password are passed in, config will use this
-	ds, err := createDiscordSessionFromLogin(authConfig.Email, authConfig.Password)
-	if err != nil {
-		return new(discordgo.Session), err
-	}
-	// save the token to the token file
-	// create token file
-	file, err := os.Create(configPath)
-	if err != nil {
-		return new(discordgo.Session), err
-	}
-	defer file.Close()
-
-	// write token to token file
-	if _, err := file.WriteString(ds.Token); err != nil {
-		return new(discordgo.Session), err
-	}
-	return ds, nil
-}
-
-func createDiscordSessionFromToken(authToken string) (*discordgo.Session, error) {
-	if token != "" {
-		authToken = token
-	}
-	if authToken == "" {
-		return new(discordgo.Session), fmt.Errorf("Empty auth token provided, try 'chord config'")
-	}
-	ds, err := discordgo.New(authToken)
-	if err != nil {
-		return new(discordgo.Session), err
-	}
-	dUser, err = ds.User("@me")
-	if err != nil {
-		return new(discordgo.Session), err
-	}
-	logrus.Debugf("Logged in as %s\n", dUser.String())
-	return ds, nil
-}
-
-func createDiscordSessionFromLogin(emailIn, passwordIn string) (*discordgo.Session, error) {
-	if email != "" {
-		emailIn = email
-	}
-	if password != "" {
-		passwordIn = password
-	}
-	if emailIn == "" || passwordIn == "" {
-		return new(discordgo.Session), fmt.Errorf("No email or password entered, try 'chord config'")
-	}
-
-	// Create a new Discord session using the provided login information.
-	ds, err := discordgo.New(emailIn, passwordIn)
-	if err != nil {
-		return new(discordgo.Session), err
-	}
-	dUser, err = ds.User("@me")
-	if err != nil {
-		return new(discordgo.Session), err
-	}
-	logrus.Debugf("Logged in as %s\n", dUser.String())
-	return ds, nil
 }

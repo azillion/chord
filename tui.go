@@ -10,10 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/azillion/chord/internal/getconfig"
 	"github.com/bwmarrin/discordgo"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/marcusolsson/tui-go"
+	tui "github.com/marcusolsson/tui-go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -89,7 +88,8 @@ type tuiCommand struct {
 }
 
 func (cmd *tuiCommand) Run(ctx context.Context, args []string) error {
-	StartTUI(cmd.cSel)
+	ds := getContextValue(ctx, discordSessionKey)
+	StartTUI(cmd.cSel, ds)
 	return nil
 }
 
@@ -101,7 +101,7 @@ func panic(err error, ds *discordgo.Session) {
 }
 
 // StartTUI Start the TUI display
-func StartTUI(cSel int) {
+func StartTUI(cSel int, ds *discordgo.Session) {
 	// sidebar := tui.NewVBox(
 	// 	tui.NewLabel("CHANNELS"),
 	// 	tui.NewLabel("general"),
@@ -112,12 +112,6 @@ func StartTUI(cSel int) {
 	// 	tui.NewSpacer(),
 	// )
 	// sidebar.SetBorder(true)
-	tuiDS, err := createDiscordSession(getconfig.AuthConfig{})
-	if err != nil {
-		logrus.Debugf("Session Failed \n%v\nexiting.", spew.Sdump(tuiDS))
-		err = fmt.Errorf("You may need to login from a browser first or check your credentials\n%v", err)
-		panic(err, tuiDS)
-	}
 
 	// Get a list of DM channels
 	channels, err := tuiDS.UserChannels()
@@ -303,14 +297,16 @@ func convertToTUIPost(message *discordgo.Message) (post, error) {
 
 // New message event handler
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-	newAck, err := s.ChannelMessageAck(m.Message.ChannelID, m.Message.ID, lastAck.Token)
-	if err != nil {
-		panic(err, tuiDS)
+	if m.Message.ChannelID == channel.ID {
+		newAck, err := s.ChannelMessageAck(m.Message.ChannelID, m.Message.ID, lastAck.Token)
+		if err != nil {
+			panic(err, tuiDS)
+		}
+		lastAck = newAck
+		p, err := convertToTUIPost(m.Message)
+		if err != nil {
+			panic(err, tuiDS)
+		}
+		addPostToDisplay(p)
 	}
-	lastAck = newAck
-	p, err := convertToTUIPost(m.Message)
-	if err != nil {
-		panic(err, tuiDS)
-	}
-	addPostToDisplay(p)
 }
